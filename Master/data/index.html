@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nexus Dashboard</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>NEXUS</h1>
+        <p>Node Control Interface</p>
+      </header>
+
+      <main id="dashboard-grid">
+        <!-- Slave cards will be dynamically inserted here -->
+      </main>
+    </div>
+
+    <!-- Template for a slave card -->
+    <template id="slave-card-template">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="slave-name">--</h2>
+          <div class="header-controls">
+            <span class="status-pill">Loading...</span>
+            <button class="close-button" title="Release Slave ID">
+              &times;
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="data-section">
+            <p class="label">HEARTBEAT COUNT</p>
+            <p class="data-large slave-counter">--</p>
+          </div>
+          <div class="data-section timer-section" style="display: none">
+            <p class="label">NEXT CHECK-IN</p>
+            <p class="data-large timer-countdown">60s</p>
+          </div>
+        </div>
+        <div class="card-controls">
+          <div class="control-group">
+            <input
+              type="text"
+              class="rename-input"
+              placeholder="Enter new name..."
+            />
+            <button class="rename-button">Rename</button>
+          </div>
+          <div class="control-group">
+            <button class="power-button">Toggle Power</button>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
