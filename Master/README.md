@@ -59,7 +59,7 @@ The web interface provides:
 
 3. Connect to the "Nexus Network" WiFi access point
 
-4. Access the dashboard at http://192.168.4.1
+4. Access the dashboard at your master node's IP address
 
 ## Configuration
 
