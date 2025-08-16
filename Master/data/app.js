@@ -1,6 +1,6 @@
 // Global variables
 let countdownIntervals = {};
-let removedSlaves = [];
+let queuedSlaves = [];
 let socket = null;
 let outbox = []; // queued messages while WS connects
 let wsOpen = false;
@@ -63,16 +63,6 @@ function sendWS(obj) {
 window.addEventListener("load", () => {
   connectWS();
 
-  const savedQueue = localStorage.getItem("removedSlaves");
-  if (savedQueue) {
-    try {
-      removedSlaves = JSON.parse(savedQueue);
-      updateQueueButton();
-    } catch {
-      localStorage.removeItem("removedSlaves");
-    }
-  }
-
   const qb = document.getElementById("queue-button");
   if (qb) qb.addEventListener("click", showSlaveQueue);
 });
@@ -84,19 +74,27 @@ window.addEventListener("beforeunload", () => {
 // --- WS data handler (state updates from master) ---
 function handleWebSocketMessage(event) {
   try {
-    const slaves = JSON.parse(event.data);
-    if (!Array.isArray(slaves)) {
+    const data = JSON.parse(event.data);
+    if (!data.active && !data.queued) {
       // acks/etc; ignore
       return;
     }
+
+    const activeSlaves = data.active || [];
+    const queuedSlaves = data.queued || [];
+
+    // Update global queued slaves array
+    window.queuedSlaves = queuedSlaves;
+    updateQueueButton();
 
     const grid = document.getElementById("dashboard-grid");
     const template = document.getElementById("slave-card-template");
     if (!grid || !template) return;
 
     const existingIds = new Set([...grid.children].map((c) => c.dataset.id));
-    const incomingIds = new Set(slaves.map((s) => s.id.toString()));
+    const incomingIds = new Set(activeSlaves.map((s) => s.id.toString()));
 
+    // Remove cards for slaves that are no longer active
     existingIds.forEach((id) => {
       if (!incomingIds.has(id)) {
         const el = grid.querySelector(`.card[data-id='${id}']`);
@@ -104,7 +102,8 @@ function handleWebSocketMessage(event) {
       }
     });
 
-    slaves.forEach((slave) => {
+    // Update or create cards for active slaves
+    activeSlaves.forEach((slave) => {
       let card = grid.querySelector(`.card[data-id='${slave.id}']`);
       if (!card) {
         card = template.content.cloneNode(true).firstElementChild;
@@ -117,7 +116,7 @@ function handleWebSocketMessage(event) {
           ?.addEventListener("click", () => sendRenameCommand(slave.id));
         card
           .querySelector(".close-button")
-          ?.addEventListener("click", () => releaseSlaveId(slave.id));
+          ?.addEventListener("click", () => deactivateSlaveId(slave.id));
 
         card
           .querySelector(".toggle-advanced-button")
@@ -177,7 +176,7 @@ function handleWebSocketMessage(event) {
       updateAdvancedFields(card, slave);
     });
   } catch (e) {
-    // ignore non-array payloads (acks)
+    // ignore non-object payloads (acks)
   }
 }
 
@@ -255,22 +254,17 @@ function togglePowerMode(slaveId) {
   sendWS({ action: "power", id: slaveId, mode });
 }
 
-function releaseSlaveId(slaveId) {
-  if (!confirm(`Release slave #${slaveId}?`)) return;
+function deactivateSlaveId(slaveId) {
+  if (!confirm(`Move slave #${slaveId} to queue?`)) return;
+  sendWS({ action: "deactivate", id: slaveId });
+}
 
-  const card = document.querySelector(`.card[data-id='${slaveId}']`);
-  if (card) {
-    const name = card.querySelector(".slave-name").textContent;
-    const counter = card.querySelector(".slave-counter").textContent;
-    removedSlaves.push({
-      id: slaveId,
-      name,
-      counter,
-      removedAt: new Date().toISOString(),
-    });
-    localStorage.setItem("removedSlaves", JSON.stringify(removedSlaves));
-    updateQueueButton();
-  }
+function activateSlaveFromQueue(slaveId) {
+  sendWS({ action: "activate", id: slaveId });
+}
+
+function releaseSlaveId(slaveId) {
+  if (!confirm(`Permanently remove slave #${slaveId}?`)) return;
   sendWS({ action: "release", id: slaveId });
 }
 
@@ -306,7 +300,6 @@ function setSleepDuration(slaveId, card) {
 function setGpioState(slaveId, card) {
   const pin = parseInt(card.querySelector(".gpio-pin").value, 10);
   const state = parseInt(card.querySelector(".gpio-state").value, 10);
-  // (Optional) ESP32-C3 warnings can be kept if you re-add chip badges in UI
   sendWS({ action: "gpio", id: slaveId, pin, state });
 }
 
@@ -347,12 +340,13 @@ function triggerImmediateReport(slaveId) {
   sendWS({ action: "trigger_report", id: slaveId });
 }
 
-// --- Queue modal helpers (unchanged UI-wise) ---
+// --- Queue modal helpers ---
 function updateQueueButton() {
   const queueButton = document.getElementById("queue-button");
   if (!queueButton) return;
-  queueButton.textContent = `Queue (${removedSlaves.length})`;
-  queueButton.style.display = removedSlaves.length > 0 ? "block" : "none";
+  const queueCount = window.queuedSlaves ? window.queuedSlaves.length : 0;
+  queueButton.textContent = `Queue (${queueCount})`;
+  queueButton.style.display = queueCount > 0 ? "block" : "none";
 }
 
 function showSlaveQueue() {
@@ -368,7 +362,7 @@ function showSlaveQueue() {
     closeBtn.innerHTML = "&times;";
     closeBtn.onclick = hideSlaveQueue;
     const header = document.createElement("h2");
-    header.textContent = "Removed Slaves Queue";
+    header.textContent = "Queued Slaves";
     const list = document.createElement("div");
     list.id = "queue-list";
     content.appendChild(closeBtn);
@@ -377,51 +371,59 @@ function showSlaveQueue() {
     modal.appendChild(content);
     document.body.appendChild(modal);
   }
+
   const list = document.getElementById("queue-list");
   list.innerHTML = "";
-  if (removedSlaves.length === 0) {
+
+  if (!window.queuedSlaves || window.queuedSlaves.length === 0) {
     list.innerHTML = "<p>No slaves in the queue</p>";
   } else {
-    removedSlaves.forEach((slave, index) => {
+    window.queuedSlaves.forEach((slave) => {
       const item = document.createElement("div");
       item.className = "queue-item";
       const info = document.createElement("div");
       info.className = "queue-item-info";
-      info.innerHTML = `<strong>${slave.name}</strong> (ID: ${
-        slave.id
-      }) <span>Removed: ${new Date(slave.removedAt).toLocaleString()}</span>`;
-      const restore = document.createElement("button");
-      restore.className = "restore-button";
-      restore.textContent = "Restore";
-      restore.onclick = () => restoreSlave(index);
+      info.innerHTML = `<strong>${slave.name}</strong> (ID: ${slave.id}) <span>Status: ${slave.status}</span>`;
+
+      const actions = document.createElement("div");
+      actions.className = "queue-actions";
+
+      const activate = document.createElement("button");
+      activate.className = "activate-button";
+      activate.textContent = "Activate";
+      activate.onclick = () => {
+        activateSlaveFromQueue(slave.id);
+        showSlaveQueue(); // Refresh the modal
+      };
+
+      const remove = document.createElement("button");
+      remove.className = "remove-button";
+      remove.textContent = "Remove";
+      remove.onclick = () => {
+        if (
+          confirm(`Permanently remove slave "${slave.name}" (ID: ${slave.id})?`)
+        ) {
+          releaseSlaveId(slave.id);
+          showSlaveQueue(); // Refresh the modal
+        }
+      };
+
+      actions.appendChild(activate);
+      actions.appendChild(remove);
       item.appendChild(info);
-      item.appendChild(restore);
+      item.appendChild(actions);
       list.appendChild(item);
     });
   }
   modal.style.display = "block";
 }
+
 function hideSlaveQueue() {
   const m = document.getElementById("queue-modal");
   if (m) m.style.display = "none";
 }
-function restoreSlave(index) {
-  if (index < 0 || index >= removedSlaves.length) return;
-  const slave = removedSlaves[index];
-  removedSlaves.splice(index, 1);
-  localStorage.setItem("removedSlaves", JSON.stringify(removedSlaves));
-  sendWS({ action: "restore", id: slave.id });
-  // lightweight toast
-  const ok = document.createElement("div");
-  ok.className = "command-feedback success";
-  ok.textContent = `Slave "${slave.name}" (ID: ${slave.id}) has been restored`;
-  document.body.appendChild(ok);
-  setTimeout(() => ok.remove(), 3000);
-  updateQueueButton();
-  showSlaveQueue();
-}
 
-// --- Advanced fields/UI updates (kept from your version) ---
+// --- Advanced fields/UI updates ---
 function toggleAdvancedControls(event, card) {
   const section = card.querySelector(".advanced-controls");
   const btn = card.querySelector(".toggle-advanced-button");
@@ -439,7 +441,6 @@ function updateAdvancedFields(card, slave) {
   if (intervalInput && slave.reportingInterval) {
     intervalInput.placeholder = `Report interval (current: ${slave.reportingInterval}ms)`;
   }
-  // Power button state is handled in updatePowerUI
 
   const debugModeSelect = card.querySelector(".debug-mode");
   if (debugModeSelect) debugModeSelect.value = slave.debugMode ? "1" : "0";

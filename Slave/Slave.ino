@@ -7,9 +7,7 @@
 #define ACTIVE_DELAY_MS 2000
 #define POWER_SAVE_DURATION 60 * 1000000 
 
-
 uint8_t broadcastAddress[] = {0x24, 0x58, 0x7C, 0xD0, 0x5F, 0xFC};
-
 
 RTC_DATA_ATTR bool inPowerSaveMode;
 RTC_DATA_ATTR int bootCount = 0;
@@ -63,7 +61,9 @@ bool shouldTriggerReport = false;
 // --- ESP-NOW Callbacks ---
 
 void OnDataSent(const wifi_tx_info_t *info, esp_now_send_status_t status) {
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  if (debugMode) {
+    Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  }
 }
 
 void OnDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int len) {
@@ -78,14 +78,27 @@ void OnDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int 
       preferences.end();
       break;
     
-    case ENTER_POWER_SAVE:
-      Serial.println("Entering Power Save Mode on next cycle.");
+    case ENTER_POWER_SAVE: {
+      Serial.println("Entering Power Save Mode immediately.");
       inPowerSaveMode = true;
+      // Send immediate confirmation with power save status
+      myData.isPowerSave = true;
+      esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
+      delay(100); // Brief delay to ensure message is sent
+      
+      // Enter deep sleep immediately for faster power save transition
+      unsigned long sleepMicros = sleepDuration * 1000000UL;
+      Serial.printf("Going to sleep for %lu seconds...\n", sleepDuration);
+      esp_deep_sleep(sleepMicros);
       break;
+    }
 
     case EXIT_POWER_SAVE:
       Serial.println("Exiting Power Save Mode.");
       inPowerSaveMode = false;
+      // Send immediate confirmation
+      myData.isPowerSave = false;
+      esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
       break;
       
     case SET_REPORTING_INTERVAL: {
@@ -236,10 +249,12 @@ void setup() {
   }
   
   Serial.println("ESP32-C3 Super Mini Slave initialized");
-  Serial.printf("Reporting interval: %lu ms\n", reportingInterval);
-  Serial.printf("Sleep duration: %lu seconds\n", sleepDuration);
-  Serial.printf("Device role: %s\n", deviceRole);
-  Serial.printf("Debug mode: %s\n", debugMode ? "enabled" : "disabled");
+  if (debugMode) {
+    Serial.printf("Reporting interval: %lu ms\n", reportingInterval);
+    Serial.printf("Sleep duration: %lu seconds\n", sleepDuration);
+    Serial.printf("Device role: %s\n", deviceRole);
+    Serial.printf("Debug mode: enabled\n");
+  }
 }
  
 void loop() {
@@ -271,13 +286,13 @@ void loop() {
   // Reset ping response flag after sending
   myData.pingResponse = false;
   
-  // Listen for commands
-  delay(200);
+  // Listen for commands - reduced delay for faster power save transitions
+  delay(100);
   
   // Handle reset commands
   if (shouldReset) {
     Serial.println("Performing reset...");
-    delay(100);
+    delay(50);
     ESP.restart();
   }
   
@@ -286,7 +301,7 @@ void loop() {
     preferences.begin("nexus-slave", false);
     preferences.clear();
     preferences.end();
-    delay(100);
+    delay(50);
     ESP.restart();
   }
   

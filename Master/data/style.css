@@ -184,7 +184,7 @@ header p {
 }
 
 .close-button:hover {
-  color: var(--status-offline-text);
+  color: var(--warning-color);
 }
 
 .status-pill {
@@ -687,6 +687,44 @@ header p {
   color: var(--text-muted);
 }
 
+.queue-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.activate-button,
+.remove-button {
+  border: none;
+  border-radius: var(--border-radius);
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.activate-button {
+  background-color: var(--success-color);
+  color: var(--bg-color);
+}
+
+.activate-button:hover {
+  background-color: #388e3c;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.remove-button {
+  background-color: var(--error-color);
+  color: var(--bg-color);
+}
+
+.remove-button:hover {
+  background-color: #d32f2f;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
 .restore-button {
   background-color: var(--success-color);
   color: var(--bg-color);
@@ -716,5 +754,15 @@ header p {
     margin: 5% auto;
     width: 95%;
     padding: 1.5rem;
+  }
+
+  .queue-item {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .queue-actions {
+    justify-content: center;
   }
 }

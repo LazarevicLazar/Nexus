@@ -45,11 +45,13 @@ struct SlaveDevice {
   unsigned long reportingInterval; // How often to report data
   int analogReadings[6];      // Array to store analog readings
   bool pingResponse;          // Flag for ping response
+  bool isActive;              // Whether device is active (not in queue)
 };
 
 // A vector to store all known slave devices
 std::vector<SlaveDevice> slaves;
 std::set<int> usedIds; // Track which IDs are currently in use
+std::set<int> activeIds; // Track which IDs are active (not in queue)
 int nextHighestId = 1; // The next highest ID to assign if no lower IDs are available
 
 // Helper: safely get int/bool/string from JSON
@@ -121,6 +123,12 @@ int findSlaveById(int id) {
     return -1;
 }
 
+// Check if a slave is active (not in queue)
+bool isSlaveActive(int slaveIndex) {
+    if (slaveIndex < 0 || slaveIndex >= slaves.size()) return false;
+    return slaves[slaveIndex].isActive;
+}
+
 // Send a command to a specific slave by its MAC address
 void sendCommandToSlave(const uint8_t* mac, CommandType cmd, const char* payload = "") {
     struct_command command;
@@ -152,7 +160,7 @@ void sendCommandToSlave(const uint8_t* mac, CommandType cmd, const char* payload
 // Set the reporting interval for a slave
 void setReportingInterval(int slaveId, unsigned long intervalMs) {
     int slaveIndex = findSlaveById(slaveId);
-    if (slaveIndex != -1) {
+    if (slaveIndex != -1 && isSlaveActive(slaveIndex)) {
         // Update the local state first
         slaves[slaveIndex].reportingInterval = intervalMs;
         
@@ -170,7 +178,7 @@ void setReportingInterval(int slaveId, unsigned long intervalMs) {
 // Trigger an immediate report from a slave
 void triggerImmediateReport(int slaveId) {
     int slaveIndex = findSlaveById(slaveId);
-    if (slaveIndex != -1) {
+    if (slaveIndex != -1 && isSlaveActive(slaveIndex)) {
         sendCommandToSlave(slaves[slaveIndex].macAddress, TRIGGER_IMMEDIATE_REPORT);
         Serial.printf("Triggered immediate report from slave #%d\n", slaveId);
     }
@@ -179,7 +187,7 @@ void triggerImmediateReport(int slaveId) {
 // Set the sleep duration for a slave
 void setSleepDuration(int slaveId, unsigned long durationSec) {
     int slaveIndex = findSlaveById(slaveId);
-    if (slaveIndex != -1) {
+    if (slaveIndex != -1 && isSlaveActive(slaveIndex)) {
         // Note: We don't store sleep duration in the master's data structure,
         // but we still send the command to the slave
         
@@ -193,7 +201,7 @@ void setSleepDuration(int slaveId, unsigned long durationSec) {
 // Set the role for a slave
 void setDeviceRole(int slaveId, const char* role) {
     int slaveIndex = findSlaveById(slaveId);
-    if (slaveIndex != -1) {
+    if (slaveIndex != -1 && isSlaveActive(slaveIndex)) {
         // Update the local state first
         strncpy(slaves[slaveIndex].deviceRole, role, sizeof(slaves[slaveIndex].deviceRole));
         
@@ -209,7 +217,7 @@ void setDeviceRole(int slaveId, const char* role) {
 // Reset a slave
 void resetSlave(int slaveId) {
     int slaveIndex = findSlaveById(slaveId);
-    if (slaveIndex != -1) {
+    if (slaveIndex != -1 && isSlaveActive(slaveIndex)) {
         sendCommandToSlave(slaves[slaveIndex].macAddress, RESET_SLAVE);
         Serial.printf("Reset command sent to slave #%d\n", slaveId);
     }
@@ -218,7 +226,7 @@ void resetSlave(int slaveId) {
 // Factory reset a slave
 void factoryResetSlave(int slaveId) {
     int slaveIndex = findSlaveById(slaveId);
-    if (slaveIndex != -1) {
+    if (slaveIndex != -1 && isSlaveActive(slaveIndex)) {
         sendCommandToSlave(slaves[slaveIndex].macAddress, FACTORY_RESET);
         Serial.printf("Factory reset command sent to slave #%d\n", slaveId);
     }
@@ -227,7 +235,7 @@ void factoryResetSlave(int slaveId) {
 // Enable or disable debug mode on a slave
 void setDebugMode(int slaveId, bool enable) {
     int slaveIndex = findSlaveById(slaveId);
-    if (slaveIndex != -1) {
+    if (slaveIndex != -1 && isSlaveActive(slaveIndex)) {
         // Update the local state first
         slaves[slaveIndex].debugMode = enable;
         
@@ -243,7 +251,7 @@ void setDebugMode(int slaveId, bool enable) {
 // Ping a slave
 void pingSlave(int slaveId) {
     int slaveIndex = findSlaveById(slaveId);
-    if (slaveIndex != -1) {
+    if (slaveIndex != -1 && isSlaveActive(slaveIndex)) {
         sendCommandToSlave(slaves[slaveIndex].macAddress, PING_SLAVE);
         Serial.printf("Ping sent to slave #%d\n", slaveId);
     }
@@ -252,7 +260,7 @@ void pingSlave(int slaveId) {
 // Set a GPIO pin on a slave
 void setGpioState(int slaveId, int pin, int state) {
     int slaveIndex = findSlaveById(slaveId);
-    if (slaveIndex != -1) {
+    if (slaveIndex != -1 && isSlaveActive(slaveIndex)) {
         // Check for known ESP32-C3 GPIO limitations
         bool isPotentialC3Issue = false;
         if (pin > 21) {
@@ -279,7 +287,7 @@ void setGpioState(int slaveId, int pin, int state) {
 // Request an analog reading from a slave
 void requestAnalogReading(int slaveId, int pin) {
     int slaveIndex = findSlaveById(slaveId);
-    if (slaveIndex != -1) {
+    if (slaveIndex != -1 && isSlaveActive(slaveIndex)) {
         // Check for known ESP32-C3 ADC limitations
         bool isPotentialC3Issue = false;
         if (pin > 4) {
@@ -299,7 +307,7 @@ void requestAnalogReading(int slaveId, int pin) {
 // Set the transmit power for a slave
 void setTransmitPower(int slaveId, int power) {
     int slaveIndex = findSlaveById(slaveId);
-    if (slaveIndex != -1) {
+    if (slaveIndex != -1 && isSlaveActive(slaveIndex)) {
         // Check for known ESP32-C3 power limitations
         bool isPotentialC3Issue = false;
         if (power > 20) {
@@ -322,19 +330,29 @@ void setTransmitPower(int slaveId, int power) {
 // Request a WiFi scan from a slave
 void requestWifiScan(int slaveId) {
     int slaveIndex = findSlaveById(slaveId);
-    if (slaveIndex != -1) {
+    if (slaveIndex != -1 && isSlaveActive(slaveIndex)) {
         sendCommandToSlave(slaves[slaveIndex].macAddress, SCAN_WIFI_NETWORKS);
         Serial.printf("Requested WiFi scan from slave #%d\n", slaveId);
     }
 }
 
-// Broadcast the data of all slaves to all WebSocket clients
+// Broadcast the data of all active slaves to all WebSocket clients
 void broadcastAllSlavesData() {
-    StaticJsonDocument<2048> jsonDoc; // Increased size for additional data
-    JsonArray slavesArray = jsonDoc.to<JsonArray>();
+    StaticJsonDocument<4096> jsonDoc; // Increased size for active/queue data
+    JsonObject root = jsonDoc.to<JsonObject>();
+    
+    JsonArray activeSlavesArray = root.createNestedArray("active");
+    JsonArray queuedSlavesArray = root.createNestedArray("queued");
 
     for (const auto& slave : slaves) {
-        JsonObject slaveObj = slavesArray.createNestedObject();
+        JsonObject slaveObj;
+        
+        if (slave.isActive) {
+            slaveObj = activeSlavesArray.createNestedObject();
+        } else {
+            slaveObj = queuedSlavesArray.createNestedObject();
+        }
+        
         slaveObj["id"] = slave.id;
         slaveObj["name"] = slave.name;
         slaveObj["counter"] = slave.counter;
@@ -359,6 +377,40 @@ void broadcastAllSlavesData() {
     String jsonStr;
     serializeJson(jsonDoc, jsonStr);
     ws.textAll(jsonStr);
+}
+
+// Add a slave to active list (remove from queue)
+void activateSlave(int slaveId) {
+    int slaveIndex = findSlaveById(slaveId);
+    if (slaveIndex != -1) {
+        slaves[slaveIndex].isActive = true;
+        activeIds.insert(slaveId);
+        
+        // Restore normal sleep duration when activating (user can adjust later)
+        setSleepDuration(slaveId, 60); // Reset to normal 60s sleep duration
+        delay(100); // Brief delay to ensure command is processed
+        
+        // Wake up the slave when activating from queue
+        sendCommandToSlave(slaves[slaveIndex].macAddress, EXIT_POWER_SAVE);
+        slaves[slaveIndex].isPowerSave = false;
+        slaves[slaveIndex].wakeUpPending = false;
+        
+        Serial.printf("Slave #%d activated (moved from queue to dashboard) with normal sleep duration\n", slaveId);
+        broadcastAllSlavesData();
+    }
+}
+
+// Remove a slave from active list (add to queue)
+void deactivateSlave(int slaveId) {
+    int slaveIndex = findSlaveById(slaveId);
+    if (slaveIndex != -1) {
+        slaves[slaveIndex].isActive = false;
+        slaves[slaveIndex].isOnline = false; // Mark as offline when deactivated
+        slaves[slaveIndex].wakeUpPending = false; // Clear any pending wake-up
+        activeIds.erase(slaveId);
+        Serial.printf("Slave #%d deactivated (moved from dashboard to queue)\n", slaveId);
+        broadcastAllSlavesData();
+    }
 }
 
 // --- Callbacks and Setup ---
@@ -388,20 +440,21 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
     if (action == "rename" && id >= 0) {
       String name = jStr(doc["name"]);
       int idx = findSlaveById(id);
-      if (idx != -1) {
+      if (idx != -1 && isSlaveActive(idx)) {
         strncpy(slaves[idx].name, name.c_str(), sizeof(slaves[idx].name));
         sendCommandToSlave(slaves[idx].macAddress, RENAME_SLAVE, name.c_str());
         broadcastAllSlavesData();
         client->text("{\"ok\":true}");
-      } else client->text("{\"ok\":false,\"err\":\"not_found\"}");
+      } else client->text("{\"ok\":false,\"err\":\"not_found_or_inactive\"}");
 
     } else if (action == "power" && id >= 0) {
       String mode = jStr(doc["mode"]); // "on" -> enter PS, "off" -> exit PS
       int idx = findSlaveById(id);
-      if (idx != -1) {
+      if (idx != -1 && isSlaveActive(idx)) {
         if (mode == "on") {
           slaves[idx].isPowerSave = true;
           slaves[idx].wakeUpPending = false;
+          slaves[idx].isOnline = false; // Immediately mark as offline
           sendCommandToSlave(slaves[idx].macAddress, ENTER_POWER_SAVE);
         } else {
           if (slaves[idx].isPowerSave) slaves[idx].wakeUpPending = true;
@@ -409,21 +462,35 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
         }
         broadcastAllSlavesData();
         client->text("{\"ok\":true}");
-      } else client->text("{\"ok\":false,\"err\":\"not_found\"}");
+      } else client->text("{\"ok\":false,\"err\":\"not_found_or_inactive\"}");
+
+    } else if (action == "activate" && id >= 0) {
+      activateSlave(id);
+      client->text("{\"ok\":true}");
+
+    } else if (action == "deactivate" && id >= 0) {
+      int idx = findSlaveById(id);
+      if (idx != -1 && isSlaveActive(idx)) {
+        // Set shorter sleep duration for queue devices before deactivating
+        setSleepDuration(id, 10); // 10 seconds for better responsiveness
+        delay(100); // Brief delay to ensure command is processed
+        
+        // Send power save command to queued devices to save power
+        sendCommandToSlave(slaves[idx].macAddress, ENTER_POWER_SAVE);
+        Serial.printf("Sent 10s sleep + power save commands to slave #%d before deactivating\n", id);
+      }
+      deactivateSlave(id);
+      client->text("{\"ok\":true}");
 
     } else if (action == "release" && id >= 0) {
       int idx = findSlaveById(id);
       if (idx != -1) {
         usedIds.erase(slaves[idx].id);
+        activeIds.erase(slaves[idx].id);
         slaves.erase(slaves.begin() + idx);
         broadcastAllSlavesData();
         client->text("{\"ok\":true}");
       } else client->text("{\"ok\":false,\"err\":\"not_found\"}");
-
-    } else if (action == "restore" && id >= 0) {
-      usedIds.insert(id);
-      broadcastAllSlavesData();
-      client->text("{\"ok\":true}");
 
     } else if (action == "reporting" && id >= 0) {
       unsigned long interval = (unsigned long) jInt(doc["interval"]);
@@ -468,6 +535,21 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
     } else if (action == "wifi_scan" && id >= 0) {
       requestWifiScan(id); client->text("{\"ok\":true}");
 
+    } else if (action == "set_queue_sleep" && id >= 0) {
+      unsigned long secs = (unsigned long) jInt(doc["seconds"]);
+      if (secs >= 1 && secs <= 300) { // Allow 1-300 seconds for queue sleep
+        int idx = findSlaveById(id);
+        if (idx != -1 && !isSlaveActive(idx)) {
+          setSleepDuration(id, secs);
+          Serial.printf("Set queue sleep duration for slave #%d to %lu seconds\n", id, secs);
+          client->text("{\"ok\":true}");
+        } else {
+          client->text("{\"ok\":false,\"err\":\"not_queued\"}");
+        }
+      } else {
+        client->text("{\"ok\":false,\"err\":\"invalid_duration\"}");
+      }
+
     } else if (action == "hello") {
       client->text("{\"ok\":true,\"hello\":true}");
     } else {
@@ -483,34 +565,71 @@ void OnDataRecv(const esp_now_recv_info * info, const uint8_t *incomingData, int
 
     int slaveIndex = findSlaveByMac(info->src_addr);
 
-    if (slaveIndex == -1) { // New slave
+    if (slaveIndex == -1) { // New slave - starts in queue and goes to sleep
         SlaveDevice newSlave;
-        newSlave.id = getNextAvailableId(); // Use the lowest available ID
+        newSlave.id = getNextAvailableId();
+        newSlave.isActive = false; // Start in queue
+        newSlave.isPowerSave = true; // Start in power save mode
+        newSlave.isOnline = false;  // Queued devices are offline
         memcpy(newSlave.macAddress, info->src_addr, 6);
         slaves.push_back(newSlave);
         slaveIndex = slaves.size() - 1;
-        Serial.printf("New slave registered with ID %d\n", newSlave.id);
+        
+        // Send power save command to new device immediately with shorter queue sleep
+        struct_command queueCommand;
+        queueCommand.command = SET_SLEEP_DURATION;
+        strcpy(queueCommand.payload, "10"); // 10 second sleep for queue devices
+        
+        esp_now_peer_info_t peerInfo = {};
+        memcpy(peerInfo.peer_addr, info->src_addr, 6);
+        peerInfo.channel = 0; 
+        peerInfo.encrypt = false;
+        
+        esp_now_add_peer(&peerInfo);
+        esp_now_send(info->src_addr, (uint8_t *) &queueCommand, sizeof(queueCommand));
+        esp_now_del_peer(info->src_addr);
+        
+        delay(50); // Brief delay before sending power save command
+        sendCommandToSlave(info->src_addr, ENTER_POWER_SAVE);
+        Serial.printf("New slave registered with ID %d (added to queue with 10s sleep)\n", newSlave.id);
     }
 
-    // Update slave data
-    strncpy(slaves[slaveIndex].name, msg.name, 32);
-    slaves[slaveIndex].counter = msg.counter;
-    slaves[slaveIndex].isPowerSave = msg.isPowerSave;
-    slaves[slaveIndex].lastRecvTime = millis();
-    slaves[slaveIndex].isOnline = true;
-    
-    // Update new fields
-    strncpy(slaves[slaveIndex].deviceRole, msg.deviceRole, 32);
-    slaves[slaveIndex].debugMode = msg.debugMode;
-    slaves[slaveIndex].reportingInterval = msg.reportingInterval;
-    memcpy(slaves[slaveIndex].analogReadings, msg.analogReadings, sizeof(msg.analogReadings));
-    slaves[slaveIndex].pingResponse = msg.pingResponse;
+    // Only update data and mark online if the slave is active
+    if (slaves[slaveIndex].isActive) {
+        // Update slave data
+        strncpy(slaves[slaveIndex].name, msg.name, 32);
+        slaves[slaveIndex].counter = msg.counter;
+        slaves[slaveIndex].isPowerSave = msg.isPowerSave;
+        slaves[slaveIndex].lastRecvTime = millis();
+        slaves[slaveIndex].isOnline = true; // Mark online only if active
+        
+        // Update new fields
+        strncpy(slaves[slaveIndex].deviceRole, msg.deviceRole, 32);
+        slaves[slaveIndex].debugMode = msg.debugMode;
+        slaves[slaveIndex].reportingInterval = msg.reportingInterval;
+        memcpy(slaves[slaveIndex].analogReadings, msg.analogReadings, sizeof(msg.analogReadings));
+        slaves[slaveIndex].pingResponse = msg.pingResponse;
 
-    // Handle pending wake-up command
-    if (slaves[slaveIndex].wakeUpPending && slaves[slaveIndex].isPowerSave) {
-        Serial.printf("Slave #%d checked in. Sending pending wake-up command.\n", slaves[slaveIndex].id);
-        sendCommandToSlave(slaves[slaveIndex].macAddress, EXIT_POWER_SAVE);
-        slaves[slaveIndex].wakeUpPending = false;
+        // Handle pending wake-up command only if slave is active
+        if (slaves[slaveIndex].wakeUpPending && slaves[slaveIndex].isPowerSave) {
+            Serial.printf("Active slave #%d checked in. Sending pending wake-up command.\n", slaves[slaveIndex].id);
+            sendCommandToSlave(slaves[slaveIndex].macAddress, EXIT_POWER_SAVE);
+            slaves[slaveIndex].wakeUpPending = false;
+        }
+    } else {
+        // For queued devices, just update the name and counter but keep them in power save
+        strncpy(slaves[slaveIndex].name, msg.name, 32);
+        slaves[slaveIndex].counter = msg.counter;
+        strncpy(slaves[slaveIndex].deviceRole, msg.deviceRole, 32);
+        slaves[slaveIndex].debugMode = msg.debugMode;
+        slaves[slaveIndex].reportingInterval = msg.reportingInterval;
+        
+        // Ensure queued devices stay in power save mode
+        if (!slaves[slaveIndex].isPowerSave) {
+            sendCommandToSlave(info->src_addr, ENTER_POWER_SAVE);
+            slaves[slaveIndex].isPowerSave = true;
+            Serial.printf("Queued slave #%d tried to wake up, sending back to sleep\n", slaves[slaveIndex].id);
+        }
     }
     
     broadcastAllSlavesData();
@@ -522,6 +641,7 @@ void setup() {
     
     // Initialize the used IDs set
     usedIds.clear();
+    activeIds.clear(); // Initialize active IDs set
 
     // Print hardware information to help with debugging
     #ifdef CONFIG_IDF_TARGET_ESP32C3
@@ -559,8 +679,6 @@ void setup() {
     ws.onEvent(onWsEvent);
     server.addHandler(&ws);
 
-
-
     server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
     server.begin();
 }
@@ -571,11 +689,12 @@ void loop() {
 
     bool changed = false;
     for (int i = 0; i < slaves.size(); i++) {
-        if (slaves[i].isOnline && (millis() - slaves[i].lastRecvTime > 4000)) {
+        // Only check timeout for active slaves
+        if (slaves[i].isActive && slaves[i].isOnline && (millis() - slaves[i].lastRecvTime > 4000)) {
             slaves[i].isOnline = false;
             slaves[i].wakeUpPending = false;
             changed = true;
-            Serial.printf("Slave #%d timed out.\n", slaves[i].id);
+            Serial.printf("Active slave #%d timed out.\n", slaves[i].id);
         }
     }
     if (changed) {
