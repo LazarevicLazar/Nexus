@@ -1,0 +1,33 @@
+# Custom user settings
+setting.json
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Arduino & PlatformIO temporary files
+*.tmp
+*.bak
+*.log
+*.elf
+*.bin
+*.hex
+.pio/
+build/
+.vscode/
+
+# Flutter specific ignores
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+ios/Pods/
+ios/Flutter/App.framework
+ios/Flutter/engine
+ios/.symlinks/
+/android/key.properties
+*.iml
+*.last-build.id
