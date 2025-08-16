@@ -6,6 +6,7 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <vector>
+#include <set>
 
 // Add chip-specific compatibility information
 #ifdef CONFIG_IDF_TARGET_ESP32C3
@@ -25,7 +26,7 @@ typedef struct struct_message {
     char deviceRole[32];      // Role of this device (e.g., "temperature_sensor")
     bool debugMode;           // Whether debug mode is enabled
     unsigned long reportingInterval; // How often to report data
-    int analogReadings[4];    // Array to store analog readings
+    int analogReadings[6];    // Array to store analog readings
     bool pingResponse;        // Flag for ping response
 } struct_message;
 
@@ -48,7 +49,29 @@ struct SlaveDevice {
 
 // A vector to store all known slave devices
 std::vector<SlaveDevice> slaves;
-int nextSlaveId = 1;
+std::set<int> usedIds; // Track which IDs are currently in use
+int nextHighestId = 1; // The next highest ID to assign if no lower IDs are available
+
+// Helper: safely get int/bool/string from JSON
+static long  jInt(JsonVariant v, long d=0){ return v.is<long>()? (long)v : d; }
+static bool  jBool(JsonVariant v, bool d=false){ return v.is<bool>()? (bool)v : d; }
+static String jStr(JsonVariant v, const char* d=""){ return v.is<const char*>()? String((const char*)v) : String(d); }
+
+// Function to get the next available ID (lowest free ID)
+int getNextAvailableId() {
+  // Start from ID 1 and find the first ID that's not in usedIds
+  for (int id = 1; id < nextHighestId; id++) {
+    if (usedIds.find(id) == usedIds.end()) {
+      // This ID is free, use it
+      usedIds.insert(id);
+      return id;
+    }
+  }
+  
+  // No gaps found, use the next highest ID
+  usedIds.insert(nextHighestId);
+  return nextHighestId++;
+}
 
 // Commands to send back to slaves
 typedef enum {
@@ -102,7 +125,8 @@ int findSlaveById(int id) {
 void sendCommandToSlave(const uint8_t* mac, CommandType cmd, const char* payload = "") {
     struct_command command;
     command.command = cmd;
-    strncpy(command.payload, payload, sizeof(command.payload));
+    memset(command.payload, 0, sizeof(command.payload)); // Clear the payload buffer first
+    strncpy(command.payload, payload, sizeof(command.payload) - 1); // Ensure null-termination
     
     esp_now_peer_info_t peerInfo = {};
     memcpy(peerInfo.peer_addr, mac, 6);
@@ -129,10 +153,17 @@ void sendCommandToSlave(const uint8_t* mac, CommandType cmd, const char* payload
 void setReportingInterval(int slaveId, unsigned long intervalMs) {
     int slaveIndex = findSlaveById(slaveId);
     if (slaveIndex != -1) {
+        // Update the local state first
+        slaves[slaveIndex].reportingInterval = intervalMs;
+        
+        // Send the command to the slave
         char payload[32];
         snprintf(payload, sizeof(payload), "%lu", intervalMs);
         sendCommandToSlave(slaves[slaveIndex].macAddress, SET_REPORTING_INTERVAL, payload);
         Serial.printf("Set reporting interval for slave #%d to %lu ms\n", slaveId, intervalMs);
+        
+        // Broadcast the updated state to all clients
+        broadcastAllSlavesData();
     }
 }
 
@@ -149,6 +180,9 @@ void triggerImmediateReport(int slaveId) {
 void setSleepDuration(int slaveId, unsigned long durationSec) {
     int slaveIndex = findSlaveById(slaveId);
     if (slaveIndex != -1) {
+        // Note: We don't store sleep duration in the master's data structure,
+        // but we still send the command to the slave
+        
         char payload[32];
         snprintf(payload, sizeof(payload), "%lu", durationSec);
         sendCommandToSlave(slaves[slaveIndex].macAddress, SET_SLEEP_DURATION, payload);
@@ -160,8 +194,15 @@ void setSleepDuration(int slaveId, unsigned long durationSec) {
 void setDeviceRole(int slaveId, const char* role) {
     int slaveIndex = findSlaveById(slaveId);
     if (slaveIndex != -1) {
+        // Update the local state first
+        strncpy(slaves[slaveIndex].deviceRole, role, sizeof(slaves[slaveIndex].deviceRole));
+        
+        // Send the command to the slave
         sendCommandToSlave(slaves[slaveIndex].macAddress, SET_DEVICE_ROLE, role);
         Serial.printf("Set role for slave #%d to %s\n", slaveId, role);
+        
+        // Broadcast the updated state to all clients
+        broadcastAllSlavesData();
     }
 }
 
@@ -187,8 +228,15 @@ void factoryResetSlave(int slaveId) {
 void setDebugMode(int slaveId, bool enable) {
     int slaveIndex = findSlaveById(slaveId);
     if (slaveIndex != -1) {
+        // Update the local state first
+        slaves[slaveIndex].debugMode = enable;
+        
+        // Send the command to the slave
         sendCommandToSlave(slaves[slaveIndex].macAddress, ENABLE_DEBUG_MODE, enable ? "1" : "0");
         Serial.printf("Debug mode %s for slave #%d\n", enable ? "enabled" : "disabled", slaveId);
+        
+        // Broadcast the updated state to all clients
+        broadcastAllSlavesData();
     }
 }
 
@@ -215,6 +263,9 @@ void setGpioState(int slaveId, int pin, int state) {
             Serial.printf("Warning: GPIO %d is used for flash on ESP32-C3 and might not be available.\n", pin);
             isPotentialC3Issue = true;
         }
+        
+        // Note: We don't store GPIO state in the master's data structure,
+        // but we still send the command to the slave
         
         char payload[32];
         snprintf(payload, sizeof(payload), "%d:%d", pin, state);
@@ -255,6 +306,9 @@ void setTransmitPower(int slaveId, int power) {
             Serial.printf("Warning: ESP32-C3 maximum power is 20 dBm. Power %d might be capped.\n", power);
             isPotentialC3Issue = true;
         }
+        
+        // Note: We don't store transmit power in the master's data structure,
+        // but we still send the command to the slave
         
         char payload[32];
         snprintf(payload, sizeof(payload), "%d", power);
@@ -309,12 +363,119 @@ void broadcastAllSlavesData() {
 
 // --- Callbacks and Setup ---
 
-void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
-    if (type == WS_EVT_CONNECT) {
-        Serial.printf("WebSocket client #%u connected\n", client->id());
-        broadcastAllSlavesData(); // Send current state of all slaves to new client
+void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
+               AwsEventType type, void *arg, uint8_t *data, size_t len) {
+  if (type == WS_EVT_CONNECT) {
+    Serial.printf("WebSocket client #%u connected\n", client->id());
+    broadcastAllSlavesData();
+  } else if (type == WS_EVT_DISCONNECT) {
+    Serial.printf("WebSocket client #%u disconnected\n", client->id());
+  } else if (type == WS_EVT_ERROR) {
+    Serial.printf("WebSocket client #%u error\n", client->id());
+  } else if (type == WS_EVT_DATA) {
+    AwsFrameInfo *info = (AwsFrameInfo*)arg;
+    if (!(info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT)) return;
+
+    // Parse JSON
+    StaticJsonDocument<512> doc;
+    DeserializationError err = deserializeJson(doc, data, len);
+    if (err) { client->text("{\"ok\":false,\"err\":\"bad_json\"}"); return; }
+
+    String action = jStr(doc["action"]);
+    int id = jInt(doc["id"], -1);
+
+    // Route actions
+    if (action == "rename" && id >= 0) {
+      String name = jStr(doc["name"]);
+      int idx = findSlaveById(id);
+      if (idx != -1) {
+        strncpy(slaves[idx].name, name.c_str(), sizeof(slaves[idx].name));
+        sendCommandToSlave(slaves[idx].macAddress, RENAME_SLAVE, name.c_str());
+        broadcastAllSlavesData();
+        client->text("{\"ok\":true}");
+      } else client->text("{\"ok\":false,\"err\":\"not_found\"}");
+
+    } else if (action == "power" && id >= 0) {
+      String mode = jStr(doc["mode"]); // "on" -> enter PS, "off" -> exit PS
+      int idx = findSlaveById(id);
+      if (idx != -1) {
+        if (mode == "on") {
+          slaves[idx].isPowerSave = true;
+          slaves[idx].wakeUpPending = false;
+          sendCommandToSlave(slaves[idx].macAddress, ENTER_POWER_SAVE);
+        } else {
+          if (slaves[idx].isPowerSave) slaves[idx].wakeUpPending = true;
+          sendCommandToSlave(slaves[idx].macAddress, EXIT_POWER_SAVE);
+        }
+        broadcastAllSlavesData();
+        client->text("{\"ok\":true}");
+      } else client->text("{\"ok\":false,\"err\":\"not_found\"}");
+
+    } else if (action == "release" && id >= 0) {
+      int idx = findSlaveById(id);
+      if (idx != -1) {
+        usedIds.erase(slaves[idx].id);
+        slaves.erase(slaves.begin() + idx);
+        broadcastAllSlavesData();
+        client->text("{\"ok\":true}");
+      } else client->text("{\"ok\":false,\"err\":\"not_found\"}");
+
+    } else if (action == "restore" && id >= 0) {
+      usedIds.insert(id);
+      broadcastAllSlavesData();
+      client->text("{\"ok\":true}");
+
+    } else if (action == "reporting" && id >= 0) {
+      unsigned long interval = (unsigned long) jInt(doc["interval"]);
+      setReportingInterval(id, interval); client->text("{\"ok\":true}");
+
+    } else if (action == "trigger_report" && id >= 0) {
+      triggerImmediateReport(id); client->text("{\"ok\":true}");
+
+    } else if (action == "sleep_duration" && id >= 0) {
+      unsigned long secs = (unsigned long) jInt(doc["seconds"]);
+      setSleepDuration(id, secs); client->text("{\"ok\":true}");
+
+    } else if (action == "role" && id >= 0) {
+      String role = jStr(doc["role"]);
+      setDeviceRole(id, role.c_str()); client->text("{\"ok\":true}");
+
+    } else if (action == "reset" && id >= 0) {
+      resetSlave(id); client->text("{\"ok\":true}");
+
+    } else if (action == "factory_reset" && id >= 0) {
+      factoryResetSlave(id); client->text("{\"ok\":true}");
+
+    } else if (action == "debug" && id >= 0) {
+      bool enable = jBool(doc["enable"]);
+      setDebugMode(id, enable); client->text("{\"ok\":true}");
+
+    } else if (action == "ping" && id >= 0) {
+      pingSlave(id); client->text("{\"ok\":true}");
+
+    } else if (action == "gpio" && id >= 0) {
+      int pin = jInt(doc["pin"]); int state = jInt(doc["state"]);
+      setGpioState(id, pin, state); client->text("{\"ok\":true}");
+
+    } else if (action == "analog" && id >= 0) {
+      int pin = jInt(doc["pin"]);
+      requestAnalogReading(id, pin); client->text("{\"ok\":true}");
+
+    } else if (action == "tx_power" && id >= 0) {
+      int pwr = jInt(doc["power"]);
+      setTransmitPower(id, pwr); client->text("{\"ok\":true}");
+
+    } else if (action == "wifi_scan" && id >= 0) {
+      requestWifiScan(id); client->text("{\"ok\":true}");
+
+    } else if (action == "hello") {
+      client->text("{\"ok\":true,\"hello\":true}");
+    } else {
+      client->text("{\"ok\":false,\"err\":\"unknown_action\"}");
     }
+  }
 }
+
 
 void OnDataRecv(const esp_now_recv_info * info, const uint8_t *incomingData, int len) {
     struct_message msg;
@@ -324,7 +485,7 @@ void OnDataRecv(const esp_now_recv_info * info, const uint8_t *incomingData, int
 
     if (slaveIndex == -1) { // New slave
         SlaveDevice newSlave;
-        newSlave.id = nextSlaveId++;
+        newSlave.id = getNextAvailableId(); // Use the lowest available ID
         memcpy(newSlave.macAddress, info->src_addr, 6);
         slaves.push_back(newSlave);
         slaveIndex = slaves.size() - 1;
@@ -358,6 +519,9 @@ void OnDataRecv(const esp_now_recv_info * info, const uint8_t *incomingData, int
 void setup() {
     Serial.begin(115200);
     Serial.println("\nMaster Node Booting Up...");
+    
+    // Initialize the used IDs set
+    usedIds.clear();
 
     // Print hardware information to help with debugging
     #ifdef CONFIG_IDF_TARGET_ESP32C3
@@ -395,167 +559,7 @@ void setup() {
     ws.onEvent(onWsEvent);
     server.addHandler(&ws);
 
-    server.on("/rename", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("id") && request->hasParam("name")) {
-            int id = request->getParam("id")->value().toInt();
-            String newName = request->getParam("name")->value();
-            int slaveIndex = findSlaveById(id);
-            if (slaveIndex != -1) {
-                sendCommandToSlave(slaves[slaveIndex].macAddress, RENAME_SLAVE, newName.c_str());
-                request->send(200, "text/plain", "OK");
-            } else { request->send(404, "text/plain", "Slave not found"); }
-        } else { request->send(400, "text/plain", "Bad Request"); }
-    });
 
-    server.on("/power", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("id") && request->hasParam("mode")) {
-            int id = request->getParam("id")->value().toInt();
-            String mode = request->getParam("mode")->value();
-            int slaveIndex = findSlaveById(id);
-            if (slaveIndex != -1) {
-                if (mode == "on") {
-                    slaves[slaveIndex].wakeUpPending = true;
-                    sendCommandToSlave(slaves[slaveIndex].macAddress, EXIT_POWER_SAVE);
-                } else if (mode == "off") {
-                    slaves[slaveIndex].wakeUpPending = false;
-                    sendCommandToSlave(slaves[slaveIndex].macAddress, ENTER_POWER_SAVE);
-                }
-                broadcastAllSlavesData();
-                request->send(200, "text/plain", "OK");
-            } else { request->send(404, "text/plain", "Slave not found"); }
-        } else { request->send(400, "text/plain", "Bad Request"); }
-    });
-
-    // New endpoint to release/remove a slave
-    server.on("/release", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("id")) {
-            int id = request->getParam("id")->value().toInt();
-            int slaveIndex = findSlaveById(id);
-            if (slaveIndex != -1) {
-                slaves.erase(slaves.begin() + slaveIndex);
-                Serial.printf("Released slave with ID %d\n", id);
-                broadcastAllSlavesData(); // Update UI
-                request->send(200, "text/plain", "OK");
-            } else { request->send(404, "text/plain", "Slave not found"); }
-        } else { request->send(400, "text/plain", "Bad Request"); }
-    });
-
-    // Endpoint for setting reporting interval
-    server.on("/reporting", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("id") && request->hasParam("interval")) {
-            int id = request->getParam("id")->value().toInt();
-            unsigned long interval = request->getParam("interval")->value().toInt();
-            setReportingInterval(id, interval);
-            request->send(200, "text/plain", "OK");
-        } else { request->send(400, "text/plain", "Bad Request"); }
-    });
-
-    // Endpoint for triggering immediate report
-    server.on("/trigger_report", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("id")) {
-            int id = request->getParam("id")->value().toInt();
-            triggerImmediateReport(id);
-            request->send(200, "text/plain", "OK");
-        } else { request->send(400, "text/plain", "Bad Request"); }
-    });
-
-    // Endpoint for setting sleep duration
-    server.on("/sleep_duration", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("id") && request->hasParam("seconds")) {
-            int id = request->getParam("id")->value().toInt();
-            unsigned long seconds = request->getParam("seconds")->value().toInt();
-            setSleepDuration(id, seconds);
-            request->send(200, "text/plain", "OK");
-        } else { request->send(400, "text/plain", "Bad Request"); }
-    });
-
-    // Endpoint for setting device role
-    server.on("/role", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("id") && request->hasParam("role")) {
-            int id = request->getParam("id")->value().toInt();
-            String role = request->getParam("role")->value();
-            setDeviceRole(id, role.c_str());
-            request->send(200, "text/plain", "OK");
-        } else { request->send(400, "text/plain", "Bad Request"); }
-    });
-
-    // Endpoint for resetting a slave
-    server.on("/reset", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("id")) {
-            int id = request->getParam("id")->value().toInt();
-            resetSlave(id);
-            request->send(200, "text/plain", "OK");
-        } else { request->send(400, "text/plain", "Bad Request"); }
-    });
-
-    // Endpoint for factory resetting a slave
-    server.on("/factory_reset", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("id")) {
-            int id = request->getParam("id")->value().toInt();
-            factoryResetSlave(id);
-            request->send(200, "text/plain", "OK");
-        } else { request->send(400, "text/plain", "Bad Request"); }
-    });
-
-    // Endpoint for setting debug mode
-    server.on("/debug", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("id") && request->hasParam("enable")) {
-            int id = request->getParam("id")->value().toInt();
-            bool enable = (request->getParam("enable")->value() == "1" ||
-                          request->getParam("enable")->value() == "true");
-            setDebugMode(id, enable);
-            request->send(200, "text/plain", "OK");
-        } else { request->send(400, "text/plain", "Bad Request"); }
-    });
-
-    // Endpoint for pinging a slave
-    server.on("/ping", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("id")) {
-            int id = request->getParam("id")->value().toInt();
-            pingSlave(id);
-            request->send(200, "text/plain", "OK");
-        } else { request->send(400, "text/plain", "Bad Request"); }
-    });
-
-    // Endpoint for setting GPIO state
-    server.on("/gpio", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("id") && request->hasParam("pin") && request->hasParam("state")) {
-            int id = request->getParam("id")->value().toInt();
-            int pin = request->getParam("pin")->value().toInt();
-            int state = request->getParam("state")->value().toInt();
-            setGpioState(id, pin, state);
-            request->send(200, "text/plain", "OK");
-        } else { request->send(400, "text/plain", "Bad Request"); }
-    });
-
-    // Endpoint for requesting analog reading
-    server.on("/analog", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("id") && request->hasParam("pin")) {
-            int id = request->getParam("id")->value().toInt();
-            int pin = request->getParam("pin")->value().toInt();
-            requestAnalogReading(id, pin);
-            request->send(200, "text/plain", "OK");
-        } else { request->send(400, "text/plain", "Bad Request"); }
-    });
-
-    // Endpoint for setting transmit power
-    server.on("/tx_power", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("id") && request->hasParam("power")) {
-            int id = request->getParam("id")->value().toInt();
-            int power = request->getParam("power")->value().toInt();
-            setTransmitPower(id, power);
-            request->send(200, "text/plain", "OK");
-        } else { request->send(400, "text/plain", "Bad Request"); }
-    });
-
-    // Endpoint for requesting WiFi scan
-    server.on("/wifi_scan", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("id")) {
-            int id = request->getParam("id")->value().toInt();
-            requestWifiScan(id);
-            request->send(200, "text/plain", "OK");
-        } else { request->send(400, "text/plain", "Bad Request"); }
-    });
 
     server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
     server.begin();

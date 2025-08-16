@@ -35,39 +35,47 @@
             </button>
           </div>
         </div>
+
         <div class="card-body">
           <div class="data-section">
             <p class="label">HEARTBEAT COUNT</p>
             <p class="data-large slave-counter">--</p>
           </div>
+
+          <!-- Timer hidden, will be managed by app.js if needed -->
           <div class="data-section timer-section" style="display: none">
             <p class="label">NEXT CHECK-IN</p>
             <p class="data-large timer-countdown">60s</p>
           </div>
         </div>
+
         <div class="card-controls">
+          <!-- Power Save -->
           <div class="control-group">
-            <input
-              type="text"
-              class="rename-input"
-              placeholder="Enter new name..."
-            />
-            <button class="rename-button">Rename</button>
-          </div>
-          <div class="control-group">
-            <button class="power-button">Toggle Power</button>
+            <button class="power-button">Power Save</button>
           </div>
 
-          <!-- Advanced Controls Section (initially hidden) -->
+          <!-- Settings Section (initially hidden) -->
           <div class="advanced-controls" style="display: none">
             <hr class="control-divider" />
-            <h3>Advanced Controls</h3>
+            <h3>Settings</h3>
 
-            <!-- Device Configuration Section -->
+            <!-- Rename -->
+            <div class="advanced-section">
+              <div class="advanced-section-title">Device Name</div>
+              <div class="control-group">
+                <input
+                  type="text"
+                  class="rename-input"
+                  placeholder="Enter new name..."
+                />
+                <button class="rename-button">Rename</button>
+              </div>
+            </div>
+
+            <!-- Device Configuration -->
             <div class="advanced-section">
               <div class="advanced-section-title">Device Configuration</div>
-
-              <!-- Device Role -->
               <div class="control-group">
                 <input
                   type="text"
@@ -76,8 +84,6 @@
                 />
                 <button class="role-button">Set Role</button>
               </div>
-
-              <!-- Reporting Interval -->
               <div class="control-group">
                 <input
                   type="number"
@@ -88,8 +94,6 @@
                 />
                 <button class="interval-button">Set</button>
               </div>
-
-              <!-- Sleep Duration -->
               <div class="control-group">
                 <input
                   type="number"
@@ -102,11 +106,9 @@
               </div>
             </div>
 
-            <!-- Hardware Control Section -->
+            <!-- Hardware Control -->
             <div class="advanced-section">
               <div class="advanced-section-title">Hardware Control</div>
-
-              <!-- GPIO Control -->
               <div class="control-group">
                 <select class="gpio-pin">
                   <option value="0">GPIO 0</option>
@@ -129,8 +131,6 @@
                 </select>
                 <button class="gpio-button">Set GPIO</button>
               </div>
-
-              <!-- Analog Reading -->
               <div class="control-group">
                 <select class="analog-pin">
                   <option value="0">ADC 0 (A0)</option>
@@ -142,8 +142,6 @@
                 </select>
                 <button class="analog-button">Read</button>
               </div>
-
-              <!-- Transmit Power Control -->
               <div class="control-group">
                 <select class="tx-power">
                   <option value="20">5 dBm (Low)</option>
@@ -155,14 +153,17 @@
               </div>
             </div>
 
-            <!-- System Actions Section -->
+            <!-- System Actions -->
             <div class="advanced-section">
               <div class="advanced-section-title">System Actions</div>
-
-              <!-- Action Buttons -->
               <div class="control-group action-buttons">
                 <button class="ping-button">Ping</button>
-                <button class="debug-button">Debug</button>
+                <div class="debug-control">
+                  <select class="debug-mode">
+                    <option value="0">Debug OFF</option>
+                    <option value="1">Debug ON</option>
+                  </select>
+                </div>
                 <button class="reset-button">Reset</button>
                 <button class="factory-reset-button">Factory Reset</button>
               </div>
@@ -171,9 +172,7 @@
 
           <!-- Toggle for Advanced Controls -->
           <div class="control-group">
-            <button class="toggle-advanced-button">
-              Show Advanced Controls
-            </button>
+            <button class="toggle-advanced-button">Show Settings</button>
           </div>
         </div>
       </div>

@@ -5,13 +5,13 @@
 
 // --- Configuration ---
 #define ACTIVE_DELAY_MS 2000
-#define POWER_SAVE_DURATION 60 * 1000000 // 1 minute
+#define POWER_SAVE_DURATION 60 * 1000000 
 
-// REPLACE WITH THE MAC ADDRESS OF YOUR MASTER BOARD
+
 uint8_t broadcastAddress[] = {0x24, 0x58, 0x7C, 0xD0, 0x5F, 0xFC};
 
-// --- RTC Memory (persists through deep sleep) ---
-RTC_DATA_ATTR bool inPowerSaveMode = false;
+
+RTC_DATA_ATTR bool inPowerSaveMode;
 RTC_DATA_ATTR int bootCount = 0;
 
 // --- Data Structures ---
@@ -19,11 +19,11 @@ typedef struct struct_message {
     char name[32];
     int counter;
     bool isPowerSave;
-    char deviceRole[32];      // Role of this device (e.g., "temperature_sensor")
-    bool debugMode;           // Whether debug mode is enabled
-    unsigned long reportingInterval; // How often to report data
-    int analogReadings[6];    // Array to store analog readings (A0-A5)
-    bool pingResponse;        // Flag for ping response
+    char deviceRole[32];      
+    bool debugMode;           
+    unsigned long reportingInterval; 
+    int analogReadings[6];    
+    bool pingResponse;       
 } struct_message;
 
 typedef enum {
@@ -53,7 +53,7 @@ typedef struct struct_command {
 struct_message myData;
 Preferences preferences;
 unsigned long reportingInterval = ACTIVE_DELAY_MS;
-unsigned long sleepDuration = POWER_SAVE_DURATION / 1000000; // Convert to seconds
+unsigned long sleepDuration = POWER_SAVE_DURATION / 1000000; 
 bool debugMode = false;
 char deviceRole[32] = "Generic Slave";
 bool shouldReset = false;
@@ -153,8 +153,6 @@ void OnDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int 
     case SET_GPIO_STATE: {
       int pin, state;
       if (sscanf(command.payload, "%d:%d", &pin, &state) == 2) {
-        // Safe GPIO pins for C3 Super Mini based on pinout
-        // GPIO 0-10, 20-21 are generally safe to use on ESP32-C3 Super Mini
         if ((pin >= 0 && pin <= 10) || pin == 20 || pin == 21) {
           Serial.printf("Setting GPIO %d to %d\n", pin, state);
           pinMode(pin, OUTPUT);
@@ -168,11 +166,9 @@ void OnDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int 
 
     case READ_ANALOG_PIN: {
       int pin = atoi(command.payload);
-      // ESP32-C3 has ADC pins on GPIO 0-5 (A0-A5)
       if (pin >= 0 && pin <= 5) {
         int reading = analogRead(pin);
         Serial.printf("Analog reading from pin %d: %d\n", pin, reading);
-        // Store the reading in the data structure to be sent back to master
         myData.analogReadings[pin] = reading;
       } else {
         Serial.printf("Invalid ADC pin %d for ESP32-C3 Super Mini\n", pin);
@@ -182,7 +178,6 @@ void OnDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int 
 
     case SET_TRANSMIT_POWER: {
       int power = atoi(command.payload);
-      // Power is in units of 0.25dBm. 80 = 20dBm (max), 20 = 5dBm, etc.
       if (power >= 20 && power <= 80) {
         Serial.printf("Setting Tx Power to %d (approx %d dBm)\n", power, power/4);
         esp_wifi_set_max_tx_power(power);

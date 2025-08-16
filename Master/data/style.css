@@ -11,6 +11,10 @@
   --status-offline-text: #ff4500;
   --power-off-bg: #4a4a4a;
   --power-off-hover: #6a6a6a;
+  --power-on-bg: #f44336;
+  --power-on-hover: #d32f2f;
+  --power-waking-bg: #f39c12;
+  --power-waking-hover: #e67e22;
   --pending-color: #f39c12;
   --success-color: #4caf50;
   --warning-color: #ff9800;
@@ -63,6 +67,31 @@ header {
   align-items: center;
 }
 
+.header-actions {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.queue-button {
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.queue-button:hover {
+  background-color: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
 header h1 {
   font-size: 2.5rem;
   font-weight: 700;
@@ -105,6 +134,20 @@ header p {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.card.sleeping {
+  opacity: 0.6;
+}
+
+.card.sleeping .card-controls {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.card.sleeping .power-button {
+  pointer-events: auto !important;
+  opacity: 1 !important;
 }
 
 .card-header {
@@ -218,8 +261,7 @@ header p {
   border-color: var(--accent-color);
 }
 
-.rename-button,
-.power-button {
+.rename-button {
   border: none;
   border-radius: 6px;
   padding: 0.5rem 1rem;
@@ -237,24 +279,47 @@ header p {
   background-color: var(--accent-hover);
 }
 
+/* Power button styles */
+.power-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  width: 100%;
+  text-align: center;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
 .power-button.active {
   background-color: var(--accent-color);
   color: var(--bg-color);
 }
+
 .power-button.active:hover {
   background-color: var(--accent-hover);
 }
+
 .power-button.inactive {
-  background-color: var(--power-off-bg);
-  color: var(--text-color);
+  background-color: var(--power-on-bg);
+  color: var(--bg-color);
 }
+
 .power-button.inactive:hover {
-  background-color: var(--power-off-hover);
+  background-color: var(--power-on-hover);
 }
+
 .power-button.pending {
-  background-color: var(--pending-color);
+  background-color: var(--power-waking-bg);
   color: var(--bg-color);
   animation: pulse 2s infinite;
+}
+
+.power-button.pending:hover {
+  background-color: var(--power-waking-hover);
 }
 
 /* Advanced Controls Styles */
@@ -300,7 +365,9 @@ header p {
 .gpio-pin,
 .gpio-state,
 .analog-pin,
-.tx-power {
+.tx-power,
+.power-mode,
+.debug-mode {
   flex-grow: 1;
   background-color: var(--bg-color);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -317,7 +384,9 @@ header p {
 .gpio-pin:focus,
 .gpio-state:focus,
 .analog-pin:focus,
-.tx-power:focus {
+.tx-power:focus,
+.power-mode:focus,
+.debug-mode:focus {
   outline: none;
   border-color: var(--accent-color);
   box-shadow: 0 0 0 2px rgba(0, 170, 255, 0.1);
@@ -370,6 +439,15 @@ header p {
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
   margin-top: 1rem;
+}
+
+/* Debug control container */
+.debug-control {
+  grid-column: span 2;
+}
+
+.debug-control .debug-mode {
+  width: 100%;
 }
 
 .ping-button,
