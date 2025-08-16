@@ -12,6 +12,13 @@
   --power-off-bg: #4a4a4a;
   --power-off-hover: #6a6a6a;
   --pending-color: #f39c12;
+  --success-color: #4caf50;
+  --warning-color: #ff9800;
+  --error-color: #f44336;
+  --modal-bg: rgba(0, 0, 0, 0.7);
+  --modal-content-bg: #1e1e1e;
+  --border-radius: 12px;
+  --box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
 }
 
 @keyframes pulse {
@@ -50,6 +57,10 @@ body {
 header {
   text-align: center;
   margin-bottom: 2rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 header h1 {
@@ -62,7 +73,28 @@ header h1 {
 
 header p {
   color: var(--text-muted);
-  margin: 0;
+  margin: 0 0 1rem 0;
+}
+
+.header-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.queue-button {
+  background-color: var(--accent-color);
+  color: var(--bg-color);
+  border: none;
+  border-radius: var(--border-radius);
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.queue-button:hover {
+  background-color: var(--accent-hover);
 }
 
 .card {
@@ -223,4 +255,388 @@ header p {
   background-color: var(--pending-color);
   color: var(--bg-color);
   animation: pulse 2s infinite;
+}
+
+/* Advanced Controls Styles */
+.control-divider {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 1rem 0;
+}
+
+.advanced-controls h3 {
+  font-size: 1.1rem;
+  color: var(--accent-color);
+  margin: 0.75rem 0 1.25rem;
+  text-align: center;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+.advanced-controls {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: var(--border-radius);
+  padding: 1.25rem;
+  margin-top: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.advanced-section {
+  margin-bottom: 1.25rem;
+}
+
+.advanced-section-title {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+.role-input,
+.interval-input,
+.sleep-input,
+.gpio-pin,
+.gpio-state,
+.analog-pin,
+.tx-power {
+  flex-grow: 1;
+  background-color: var(--bg-color);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--border-radius);
+  color: var(--text-color);
+  padding: 0.6rem 0.75rem;
+  font-size: 0.9rem;
+  transition: border-color 0.2s ease;
+}
+
+.role-input:focus,
+.interval-input:focus,
+.sleep-input:focus,
+.gpio-pin:focus,
+.gpio-state:focus,
+.analog-pin:focus,
+.tx-power:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(0, 170, 255, 0.1);
+}
+
+.role-button,
+.interval-button,
+.sleep-button,
+.gpio-button,
+.analog-button,
+.tx-power-button,
+.toggle-advanced-button {
+  border: none;
+  border-radius: var(--border-radius);
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: var(--accent-color);
+  color: var(--bg-color);
+  min-width: 80px;
+  text-align: center;
+}
+
+.role-button:hover,
+.interval-button:hover,
+.sleep-button:hover,
+.gpio-button:hover,
+.analog-button:hover,
+.tx-power-button:hover,
+.toggle-advanced-button:hover {
+  background-color: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.role-button:active,
+.interval-button:active,
+.sleep-button:active,
+.gpio-button:active,
+.analog-button:active,
+.tx-power-button:active,
+.toggle-advanced-button:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.action-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.ping-button,
+.debug-button,
+.reset-button,
+.factory-reset-button {
+  border: none;
+  border-radius: var(--border-radius);
+  padding: 0.6rem 0.75rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.ping-button:hover,
+.debug-button:hover,
+.reset-button:hover,
+.factory-reset-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.3);
+}
+
+.ping-button:active,
+.debug-button:active,
+.reset-button:active,
+.factory-reset-button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.ping-button {
+  background-color: #4caf50;
+  color: var(--bg-color);
+}
+.ping-button:hover {
+  background-color: #388e3c;
+}
+
+.debug-button {
+  background-color: #9c27b0;
+  color: var(--bg-color);
+}
+.debug-button:hover {
+  background-color: #7b1fa2;
+}
+.debug-button.active {
+  background-color: #9c27b0;
+}
+.debug-button.inactive {
+  background-color: var(--power-off-bg);
+  color: var(--text-color);
+}
+
+.reset-button {
+  background-color: #ff9800;
+  color: var(--bg-color);
+}
+.reset-button:hover {
+  background-color: #f57c00;
+}
+
+.factory-reset-button {
+  background-color: #f44336;
+  color: var(--bg-color);
+}
+.factory-reset-button:hover {
+  background-color: #d32f2f;
+}
+
+/* Analog readings display */
+.analog-readings {
+  text-align: left;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.analog-values {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.analog-reading {
+  font-size: 0.9rem;
+}
+
+.analog-reading span {
+  color: var(--text-muted);
+}
+
+.analog-reading strong {
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
+/* Command feedback notification */
+.command-feedback {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  color: white;
+  font-weight: bold;
+  z-index: 1000;
+  animation: fadeInOut 2s ease-in-out;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.command-feedback.success {
+  background-color: var(--success-color);
+}
+
+.command-feedback.error {
+  background-color: var(--error-color);
+}
+
+.command-feedback.warning {
+  background-color: var(--warning-color);
+}
+
+.command-feedback.pending {
+  background-color: var(--accent-color);
+}
+
+/* ESP32-C3 chip indicator */
+.chip-indicator {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  z-index: 5;
+}
+
+.chip-indicator.esp32c3 {
+  background-color: rgba(255, 152, 0, 0.2);
+  color: #ff9800;
+  border: 1px solid rgba(255, 152, 0, 0.5);
+}
+
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  80% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+
+/* Modal styles for slave queue */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--modal-bg);
+  overflow: auto;
+}
+
+.modal-content {
+  background-color: var(--modal-content-bg);
+  margin: 10% auto;
+  padding: 2rem;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  max-width: 600px;
+  width: 90%;
+  position: relative;
+}
+
+.close-modal {
+  color: var(--text-muted);
+  position: absolute;
+  top: 1rem;
+  right: 1.5rem;
+  font-size: 1.5rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.close-modal:hover {
+  color: var(--text-color);
+}
+
+.modal h2 {
+  margin-top: 0;
+  color: var(--accent-color);
+  margin-bottom: 1.5rem;
+}
+
+#queue-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.queue-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-radius: var(--border-radius);
+  background-color: rgba(255, 255, 255, 0.05);
+  margin-bottom: 0.75rem;
+}
+
+.queue-item-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.queue-item-info strong {
+  font-size: 1.1rem;
+  margin-bottom: 0.25rem;
+}
+
+.queue-item-info span {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.restore-button {
+  background-color: var(--success-color);
+  color: var(--bg-color);
+  border: none;
+  border-radius: var(--border-radius);
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.restore-button:hover {
+  background-color: #388e3c;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+  #dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card {
+    margin-bottom: 1.5rem;
+  }
+
+  .modal-content {
+    margin: 5% auto;
+    width: 95%;
+    padding: 1.5rem;
+  }
 }

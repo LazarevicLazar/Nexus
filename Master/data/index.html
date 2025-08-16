@@ -11,6 +11,11 @@
       <header>
         <h1>NEXUS</h1>
         <p>Node Control Interface</p>
+        <div class="header-actions">
+          <button id="queue-button" class="queue-button" style="display: none">
+            Queue (0)
+          </button>
+        </div>
       </header>
 
       <main id="dashboard-grid">
@@ -51,6 +56,124 @@
           </div>
           <div class="control-group">
             <button class="power-button">Toggle Power</button>
+          </div>
+
+          <!-- Advanced Controls Section (initially hidden) -->
+          <div class="advanced-controls" style="display: none">
+            <hr class="control-divider" />
+            <h3>Advanced Controls</h3>
+
+            <!-- Device Configuration Section -->
+            <div class="advanced-section">
+              <div class="advanced-section-title">Device Configuration</div>
+
+              <!-- Device Role -->
+              <div class="control-group">
+                <input
+                  type="text"
+                  class="role-input"
+                  placeholder="Device role (e.g., sensor)"
+                />
+                <button class="role-button">Set Role</button>
+              </div>
+
+              <!-- Reporting Interval -->
+              <div class="control-group">
+                <input
+                  type="number"
+                  class="interval-input"
+                  placeholder="Report interval (ms)"
+                  min="500"
+                  step="500"
+                />
+                <button class="interval-button">Set</button>
+              </div>
+
+              <!-- Sleep Duration -->
+              <div class="control-group">
+                <input
+                  type="number"
+                  class="sleep-input"
+                  placeholder="Sleep duration (sec)"
+                  min="10"
+                  step="10"
+                />
+                <button class="sleep-button">Set</button>
+              </div>
+            </div>
+
+            <!-- Hardware Control Section -->
+            <div class="advanced-section">
+              <div class="advanced-section-title">Hardware Control</div>
+
+              <!-- GPIO Control -->
+              <div class="control-group">
+                <select class="gpio-pin">
+                  <option value="0">GPIO 0</option>
+                  <option value="1">GPIO 1</option>
+                  <option value="2">GPIO 2</option>
+                  <option value="3">GPIO 3</option>
+                  <option value="4">GPIO 4</option>
+                  <option value="5">GPIO 5</option>
+                  <option value="6">GPIO 6</option>
+                  <option value="7">GPIO 7</option>
+                  <option value="8">GPIO 8</option>
+                  <option value="9">GPIO 9</option>
+                  <option value="10">GPIO 10</option>
+                  <option value="20">GPIO 20</option>
+                  <option value="21">GPIO 21</option>
+                </select>
+                <select class="gpio-state">
+                  <option value="0">LOW</option>
+                  <option value="1">HIGH</option>
+                </select>
+                <button class="gpio-button">Set GPIO</button>
+              </div>
+
+              <!-- Analog Reading -->
+              <div class="control-group">
+                <select class="analog-pin">
+                  <option value="0">ADC 0 (A0)</option>
+                  <option value="1">ADC 1 (A1)</option>
+                  <option value="2">ADC 2 (A2)</option>
+                  <option value="3">ADC 3 (A3)</option>
+                  <option value="4">ADC 4 (A4)</option>
+                  <option value="5">ADC 5 (A5)</option>
+                </select>
+                <button class="analog-button">Read</button>
+              </div>
+
+              <!-- Transmit Power Control -->
+              <div class="control-group">
+                <select class="tx-power">
+                  <option value="20">5 dBm (Low)</option>
+                  <option value="40">10 dBm (Medium)</option>
+                  <option value="60">15 dBm (High)</option>
+                  <option value="80" selected>20 dBm (Max)</option>
+                </select>
+                <button class="tx-power-button">Set Tx Power</button>
+              </div>
+            </div>
+
+            <!-- System Actions Section -->
+            <div class="advanced-section">
+              <div class="advanced-section-title">System Actions</div>
+
+              <!-- Action Buttons -->
+              <div class="control-group action-buttons">
+                <button class="ping-button">Ping</button>
+                <button class="debug-button">Debug</button>
+                <button class="reset-button">Reset</button>
+                <button class="factory-reset-button">Factory Reset</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Toggle for Advanced Controls -->
+          <div class="control-group">
+            <button class="toggle-advanced-button">
+              Show Advanced Controls
+            </button>
           </div>
         </div>
       </div>
