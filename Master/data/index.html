@@ -16,12 +16,29 @@
             Queue (0)
           </button>
         </div>
+        <div class="tab-controls">
+          <button id="cards-tab" class="tab-button active">Cards View</button>
+          <button id="network-tab" class="tab-button">Network View</button>
+        </div>
       </header>
 
       <main id="dashboard-grid">
         <!-- Slave cards will be dynamically inserted here -->
       </main>
     </div>
+
+    <main id="network-view" style="display: none">
+      <div class="network-container">
+        <div id="network-canvas"></div>
+        <div id="node-info-panel" class="info-panel hidden">
+          <div class="panel-header">
+            <h3 id="panel-title">Node Info</h3>
+            <button id="close-panel" class="close-button">&times;</button>
+          </div>
+          <div id="panel-content"></div>
+        </div>
+      </div>
+    </main>
 
     <!-- Template for a slave card -->
     <template id="slave-card-template">
